@@ -1,0 +1,199 @@
+---
+title: "Boots for Days!"
+author: "Victoria Zdanowicz"
+date: "11/11/2021"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Challenge 1
+
+>Using the “KamilarAndCooperData.csv” dataset, run a linear regression looking at log(HomeRange_km2) in relation to log(Body_mass_female_mean) and report your β coeffiecients (slope and intercept).
+
+```{r - packages}
+library(dplyr)
+library(curl)
+library(ggplot2)
+library(gridExtra)
+library(car)
+```
+
+## Data Preparation
+
+I started by first loading in the Kamilar & Cooper dataset and making 2 distinct objects with the desired variables, omitting NA values.  
+```{r - load in data}
+f <- curl("https://raw.githubusercontent.com/fuzzyatelin/fuzzyatelin.github.io/master/AN588_Fall21/KamilarAndCooperData.csv")
+d <- read.csv(f, header = TRUE, sep = ",", stringsAsFactors = FALSE)
+head(d)
+```
+
+```{r - prepare data}
+d <- na.omit(d) 
+
+x <- log(d$Body_mass_female_mean) #predictor
+y <- log(d$HomeRange_km2) #response
+```
+
+## Beta Values
+
+I then determined the beta values using the equations from Module 11 and my code from HW4. These equations determine the regression slope(beta1) and intercept(beta0)
+```{r - beta values}
+beta1 <- cor(y, x) * sd(y)/sd(x) 
+beta0 <- mean(y) - beta1 * mean(x)
+
+beta.values <- list(Slope = as.numeric(beta1), Intercept = as.numeric(beta0))
+```
+
+As outlined above..
+
+Slope = beta1 = cor(y, x) * sd(y)/sd(x)
+
+Intercept = beta0 = mean(y) - beta1 * mean(x)
+
+```{r - beta}
+beta.values
+```
+*By using log transformed data, we can assess the percentage of difference between two variables without different units (grams and km) confounding our analysis.*
+
+## Linear Regression
+
+You can also determine regression slop and intercept using lm() function, which is much faster/cleaner... 
+```{r - lm}
+m <- lm(y ~ x, data = d)
+summary(m)
+```
+With summary(m), we can see that the pvalue < 0.05 and thus there appears to be a significant relationship between Female Body Mass and Home Range. We can also see in the summary that the intercept and slope values calculated by hand above are equal to the intercept and x(slope) values from lm summary.
+
+## Plotting the Regression
+```{r - plot the model}
+plot(m)
+```
+The function qqPlot() from the {car} package provides a trend line and confidence intervals that allow us to see exactly which points make the sample fall outside of normality (if any)
+```{r - cars plot}
+qqPlot(m$residuals)
+```
+
+From these plots, the data appears to be normally distributed. We can also use a Shapiro-Wilk Normality Test, where a low p value would indicate deviation from normality (a measure of how far the trend line of the residuals deviates from the qqplot line).
+
+```{r - shapiro}
+s <- shapiro.test(m$residuals)
+s
+```
+From this output, the p-value > 0.05 implying that the distribution of the data are not significantly different from normal distribution. Thus, we can assume the normality!
+
+
+## Log(longevity) ~ Log(brain size)
+
+### Fitting the log regression model
+
+Like before, I pulled out the desired *predictor* and *response* variable data from dataframe, d, (with NA/missing values already removed) into objects **xx** and **yy**. During this process, I also transformed the data with function log()
+```{r - prepare log data}
+
+xx <- log(d$Brain_Size_Species_Mean) #log(predictor)
+yy <- log(d$MaxLongevity_m) #log(response)
+```
+
+Using the same code as earlier, only this time with variables **xx** and **yy**, I determined the regression slope(log.beta1) and intercept(log.beta2)
+```{r - log beta values}
+log.beta1 <- cor(yy, xx) * sd(yy)/sd(xx) 
+log.beta0 <- mean(yy) - log.beta1 * mean(xx)
+
+log.beta.values <- list(Slope = as.numeric(log.beta1), Intercept = as.numeric(log.beta0))
+print(log.beta.values)
+```
+
+You can then use the log beta values and the log predictor data, **xx**, to determine the regression line. 
+The regression line equation is:
+yy = beta1(xx)+beta0... aka *y = slope(x) + intercept*
+```{r - log regression line by hand}
+yy.log <- log.beta1 * xx + log.beta0
+yy.log
+log.equation <- paste("yy = ",log.beta1, "* xx + ", log.beta0) #I used paste() here to show the regression line equation
+log.equation
+```
+
+lm() is, again, a much faster way to determine the regression line. 
+```{r - log}
+logm <- lm(yy ~ xx, data = d)
+summary(logm)
+```
+
+From *summary(logm)* we see that the p-value, (0.000458), is less than  0.05 and thus, the predictor variable (brain size) significantly influences the response variable (max longevity). This means we can reject the null  hypothesis..
+
+
+Next - I used used ggplot to create a scatterplot with the fitted log regression line superimposed upon the data. I added the regression equation based on the object *log.equation* I made above with the equation components. 
+
+```{r - log plot1}
+log.plot1 <- ggplot(data = d, aes(x = xx, y = yy)) + theme_minimal() +
+              geom_point() +
+              labs(x = "log(Mean Species Brain Size)", y = "log(Max Longevity)", size = 14) +
+              geom_smooth(method = "lm", formula = y ~ x) +
+              geom_text(x = 5, y = 5.3, label= log.equation)
+log.plot1
+```
+
+
+### Identify & Interpret (log)
+
+As outlined above..
+
+Slope = log.beta1 = cor(yy, xx) * sd(yy)/sd(xx)
+
+Intercept = log.beta0 = mean(yy) - log.beta1 * mean(xx)
+
+```{r - log identift/interpret}
+log.beta.values
+```
+*The log transformed data looks at percentage of difference without the different units (grams and months) confounding our analysis.*
+
+Below is the 90  CI for the log slope (β1) parameter.
+```{r - log ci90}
+log.beta1.ci <- confint(logm, level = 0.90)  #confint() function uses lm object "logm" to calculate confidence intervals.
+log.beta1.ci
+```
+
+### Adding Confidence & Prediction Intervals (log)
+
+I first created 90% confidence intervals using predict() function from Module 11. *data = logm here instead of m*
+```{r - log CI}
+log.ci90 <- predict(logm, newdata = data.frame(Brain_Size_Species_Mean = xx), interval = "confidence",level = 0.90)
+colnames(log.ci90) <- c("Fit_CI","Lower_CI","Upper_CI")
+head(log.ci90)
+```
+
+Next I created 90% predictive intervals using predict() with the argument interval = "prediction"
+```{r - log PI}
+log.pi90 <- predict(logm, newdata = data.frame(Brain_Size_Species_Mean = xx), interval = "prediction", level = 0.90) 
+colnames(log.pi90) <- c("Fit_PI","Lower_PI","Upper_PI")
+head(log.pi90)
+```
+
+I then used cbind() to coerce the confidence and prediction intervals, and log(longevity) and log(brain size) data, into a single dataframe, *log.interval.plot*
+```{r - log plot df}
+log.interval.plot <- data.frame(cbind(xx, yy, log.ci90, log.pi90))
+head(log.interval.plot)
+```
+
+### Plotting log PI/CI
+
+Next, using ggplot, I created a new scatterplot with the 90% Confidence and Prediction Intervals. By using 'color = "Confience"/"Prediction"' I was able to separate the colors for the Prediction and Confidence intervals in the legend. 
+```{r - log.plot2}
+log.plot2 <- ggplot(log.interval.plot, aes(x = xx, y = yy)) + theme_minimal() +
+          geom_point() + labs(x = "log(Mean Species Brain Size)", y = "log(Max Longevity)", size = 14) +
+          geom_line(aes(x = xx, y = Fit_CI, color = "Confidence")) +
+          geom_line(aes(x = xx, y = Lower_CI, color = "Confidence")) +
+          geom_line(aes(x = xx, y = Upper_CI, color = "Confidence")) +
+          geom_line(aes(x = xx, y = Fit_PI, color = "Prediction")) +
+          geom_line(aes(x = xx, y = Lower_PI, color = "Prediction")) +
+          geom_line(aes(x = xx, y = Upper_PI, color = "Prediction")) +
+        scale_color_manual(name = "Intervals - 90%", values=c("Confidence" = "#FF6600", "Prediction" = "#000066")) #spooky colors !!
+   
+log.plot2
+```
