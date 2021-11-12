@@ -95,6 +95,7 @@ s
 ```
 From this output, the p-value > 0.05 implying that the distribution of the data are not significantly different from normal distribution. Thus, we can assume the normality!
 
+## Model II?
 
 Model II regression may be more appropriate for this analysis since we aren't testing the predictive relationship between Female mass and Home range, rather how they co-vary?
 
@@ -119,7 +120,7 @@ for (i in 1:1000) {
   d_boots = d[sample(1:nrow(d), nrow(d), replace = TRUE), ] #WITH replacement
   
   #Running the regression on these data
-  d_boots <- lm(log(Body_mass_female_mean) ~ log(HomeRange_km2), data = d_boots) #I log transformed my y ~ x here
+  d_boots <- lm(log(HomeRange_km2) ~ log(Body_mass_female_mean), data = d_boots) #I log transformed my y ~ x here
   
   #Saving the coefficients
   sample_coef_intercept <-
@@ -132,31 +133,67 @@ for (i in 1:1000) {
 
 ```
 
-## Interpreting β values
+## Interpreting β coefficients
 
-1. Estimate the standard error for each of your β coefficients as the standard deviation of the sampling distribution from your bootstrap and determine the 95% CI for each of your β coefficients based on the appropriate quantiles from your sampling distribution.
+*Estimate the standard error for each of your β coefficients as the standard deviation of the sampling distribution from your bootstrap and determine the 95% CI for each of your β coefficients based on the appropriate quantiles from your sampling distribution.*
 
 I can use the mean(), sd(), and se() functions with the coefficient objects created above from the entire bootstrap sampling distribution 
 ```{r - beta mean}
 #Bootstrapped Mean
 mean_slope <- mean(sample_coef_slope)
 mean_intercept <- mean(sample_coef_intercept)
-mean_betas <- list(Mean.Slope = as.numeric(mean_slope), Mean.Intercept = as.numeric(mean_intercept))
+mean_boots <- list(Slope = as.numeric(mean_slope),Intercept = as.numeric(mean_intercept))
 
 #Bootstrapped Standard Deviation
 sd_slope <- sd(sample_coef_slope)
 sd_intercept <- sd(sample_coef_intercept)
-sd_betas <- list(SD.Slope = as.numeric(sd_slope), SD.Intercept = as.numeric(sd_intercept))
+sd_boots <- list(Slope = as.numeric(sd_slope),Intercept = as.numeric(sd_intercept))
 
 #Bootstrapped Standard Error
 se_slope <- se(sample_coef_slope)
 se_intercept <- se(sample_coef_intercept)
-se_betas <- list(SE.Slope = as.numeric(se_slope), SE.Intercept = as.numeric(se_intercept))
+se_boots <- list(Slope = as.numeric(se_slope),Intercept = as.numeric(se_intercept))
 
-beta.averages <- cbind(mean_betas,sd_betas,se_betas)
-beta.averages
+beta.boots <- cbind(mean_boots,sd_boots,se_boots)
+beta.boots
 ```
 
-2. How does the former compare to the SE estimated from your entire dataset using the formula for standard error implemented in lm()?
+I next calculated the 95% confidence intervals for the slope and intercept 
+```{r - slope ci}
+#Slope CI
+slope.lower <- mean_slope - qnorm(1 - 0.05/2) * se_slope
+slope.upper <- mean_slope + qnorm(1 - 0.05/2) * se_slope
+ci_slope_boots <- list(Lower = as.numeric(slope.lower), Upper = as.numeric(slope.upper))
 
-3. How does the latter compare to the 95% CI estimated from your entire dataset?
+#Intercept CI
+intercept.lower <- mean_intercept - qnorm(1 - 0.05/2) * se_intercept
+intercept.upper <- mean_intercept + qnorm(1 - 0.05/2) * se_intercept
+ci_intercept_boots <- list(Lower = as.numeric(intercept.lower), Upper = as.numeric(intercept.upper))
+
+ci_boots <- cbind(ci_slope_boots,ci_intercept_boots)
+ci_boots
+```
+
+## Comparing Model & Bootstrap
+
+*How does the former compare to the SE estimated from your entire dataset using the formula for standard error implemented in lm()?*
+
+```{r - m SE}
+se_model <- coef(summary(m))[, "Std. Error"]
+SE_compare <- cbind(se_model,se_boots)
+SE_compare
+```
+
+In the table above we can clearly see that the SE for intercept,β0, and slope,β1, from the bootstrapped dataset (se_boots) is lower than the standard error pulled out of the initial linear regression model (m).
+
+
+*How does the latter compare to the 95% CI estimated from your entire dataset?*
+
+```{r - m CI}
+ci_model <- confint(m, level = 0.90)  #confint() function uses lm object d to calculate confidence intervals.
+CI_compare <- cbind(ci_model,ci_boots)
+CI_compare
+```
+In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs. I still need to figure out a better table layout for the CI values because I think the current layout is confusing
+
+<span style="color: red;">*what is the difference between predict() and confint() ????? predict(m, newdata, interval="confidence")*</span>

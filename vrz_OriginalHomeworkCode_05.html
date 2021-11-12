@@ -431,6 +431,9 @@ s</code></pre>
 ## data:  m$residuals
 ## W = 0.99387, p-value = 0.8258</code></pre>
 <p>From this output, the p-value &gt; 0.05 implying that the distribution of the data are not significantly different from normal distribution. Thus, we can assume the normality!</p>
+</div>
+<div id="model-ii" class="section level2">
+<h2>Model II?</h2>
 <p>Model II regression may be more appropriate for this analysis since we aren’t testing the predictive relationship between Female mass and Home range, rather how they co-vary?</p>
 <pre class="r"><code>mII &lt;- lmodel2(y ~ x, data = d, range.y = &quot;interval&quot;, range.x = &quot;relative&quot;,
     nperm = 1000)
@@ -482,7 +485,7 @@ for (i in 1:1000) {
   d_boots = d[sample(1:nrow(d), nrow(d), replace = TRUE), ] #WITH replacement
   
   #Running the regression on these data
-  d_boots &lt;- lm(log(Body_mass_female_mean) ~ log(HomeRange_km2), data = d_boots) #I log transformed my y ~ x here
+  d_boots &lt;- lm(log(HomeRange_km2) ~ log(Body_mass_female_mean), data = d_boots) #I log transformed my y ~ x here
   
   #Saving the coefficients
   sample_coef_intercept &lt;-
@@ -492,36 +495,66 @@ for (i in 1:1000) {
     c(sample_coef_slope, d_boots$coefficients[2])
 }</code></pre>
 </div>
-<div id="interpreting-β-values" class="section level2">
-<h2>Interpreting β values</h2>
-<ol style="list-style-type: decimal">
-<li>Estimate the standard error for each of your β coefficients as the standard deviation of the sampling distribution from your bootstrap and determine the 95% CI for each of your β coefficients based on the appropriate quantiles from your sampling distribution.</li>
-</ol>
+<div id="interpreting-β-coefficients" class="section level2">
+<h2>Interpreting β coefficients</h2>
+<p><em>Estimate the standard error for each of your β coefficients as the standard deviation of the sampling distribution from your bootstrap and determine the 95% CI for each of your β coefficients based on the appropriate quantiles from your sampling distribution.</em></p>
 <p>I can use the mean(), sd(), and se() functions with the coefficient objects created above from the entire bootstrap sampling distribution</p>
 <pre class="r"><code>#Bootstrapped Mean
 mean_slope &lt;- mean(sample_coef_slope)
 mean_intercept &lt;- mean(sample_coef_intercept)
-mean_betas &lt;- list(Mean.Slope = as.numeric(mean_slope), Mean.Intercept = as.numeric(mean_intercept))
+mean_boots &lt;- list(Slope = as.numeric(mean_slope),Intercept = as.numeric(mean_intercept))
 
 #Bootstrapped Standard Deviation
 sd_slope &lt;- sd(sample_coef_slope)
 sd_intercept &lt;- sd(sample_coef_intercept)
-sd_betas &lt;- list(SD.Slope = as.numeric(sd_slope), SD.Intercept = as.numeric(sd_intercept))
+sd_boots &lt;- list(Slope = as.numeric(sd_slope),Intercept = as.numeric(sd_intercept))
 
 #Bootstrapped Standard Error
 se_slope &lt;- se(sample_coef_slope)
 se_intercept &lt;- se(sample_coef_intercept)
-se_betas &lt;- list(SE.Slope = as.numeric(se_slope), SE.Intercept = as.numeric(se_intercept))
+se_boots &lt;- list(Slope = as.numeric(se_slope),Intercept = as.numeric(se_intercept))
 
-beta.averages &lt;- cbind(mean_betas,sd_betas,se_betas)
-beta.averages</code></pre>
-<pre><code>##                mean_betas sd_betas   se_betas   
-## Mean.Slope     0.5076657  0.04107538 0.001298918
-## Mean.Intercept 8.485269   0.082158   0.002598064</code></pre>
-<ol start="2" style="list-style-type: decimal">
-<li><p>How does the former compare to the SE estimated from your entire dataset using the formula for standard error implemented in lm()?</p></li>
-<li><p>How does the latter compare to the 95% CI estimated from your entire dataset?</p></li>
-</ol>
+beta.boots &lt;- cbind(mean_boots,sd_boots,se_boots)
+beta.boots</code></pre>
+<pre><code>##           mean_boots sd_boots   se_boots   
+## Slope     1.039689   0.07848916 0.002482045
+## Intercept -9.468661  0.6117831  0.01934628</code></pre>
+<p>I next calculated the 95% confidence intervals for the slope and intercept</p>
+<pre class="r"><code>#Slope CI
+slope.lower &lt;- mean_slope - qnorm(1 - 0.05/2) * se_slope
+slope.upper &lt;- mean_slope + qnorm(1 - 0.05/2) * se_slope
+ci_slope_boots &lt;- list(Lower = as.numeric(slope.lower), Upper = as.numeric(slope.upper))
+
+#Intercept CI
+intercept.lower &lt;- mean_intercept - qnorm(1 - 0.05/2) * se_intercept
+intercept.upper &lt;- mean_intercept + qnorm(1 - 0.05/2) * se_intercept
+ci_intercept_boots &lt;- list(Lower = as.numeric(intercept.lower), Upper = as.numeric(intercept.upper))
+
+ci_boots &lt;- cbind(ci_slope_boots,ci_intercept_boots)
+ci_boots</code></pre>
+<pre><code>##       ci_slope_boots ci_intercept_boots
+## Lower 1.034825       -9.506579         
+## Upper 1.044554       -9.430743</code></pre>
+</div>
+<div id="comparing-model-bootstrap" class="section level2">
+<h2>Comparing Model &amp; Bootstrap</h2>
+<p><em>How does the former compare to the SE estimated from your entire dataset using the formula for standard error implemented in lm()?</em></p>
+<pre class="r"><code>se_model &lt;- coef(summary(m))[, &quot;Std. Error&quot;]
+SE_compare &lt;- cbind(se_model,se_boots)
+SE_compare</code></pre>
+<pre><code>##             se_model   se_boots   
+## (Intercept) 0.6729346  0.002482045
+## x           0.08487709 0.01934628</code></pre>
+<p>In the table above we can clearly see that the SE for intercept,β0, and slope,β1, from the bootstrapped dataset (se_boots) is lower than the standard error pulled out of the initial linear regression model (m).</p>
+<p><em>How does the latter compare to the 95% CI estimated from your entire dataset?</em></p>
+<pre class="r"><code>ci_model &lt;- confint(m, level = 0.90)  #confint() function uses lm object d to calculate confidence intervals.
+CI_compare &lt;- cbind(ci_model,ci_boots)
+CI_compare</code></pre>
+<pre><code>##             5 %       95 %      ci_slope_boots ci_intercept_boots
+## (Intercept) -10.55576 -8.326704 1.034825       -9.506579         
+## x           0.8958565 1.177007  1.044554       -9.430743</code></pre>
+<p>In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs. I still need to figure out a better table layout for the CI values because I think the current layout is confusing</p>
+<p><span style="color: red;"><em>what is the difference between predict() and confint() ????? predict(m, newdata, interval=“confidence”)</em></span></p>
 </div>
 </div>
 
