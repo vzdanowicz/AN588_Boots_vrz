@@ -17,12 +17,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 >Using the “KamilarAndCooperData.csv” dataset, run a linear regression looking at log(HomeRange_km2) in relation to log(Body_mass_female_mean) and report your β coeffiecients (slope and intercept).
 
+The assumption of greater uncertainty in our response variable than in our predictor variable may be reasonable in controlled experiments, but for natural observations, measurement of the X variable also typically involves some error and, in fact, in many cases we may not be concered about PREDICTING Y from X but rather want to treat both X and Y as independent variables and explore the relationship between them or consider that both are dependent on some additional parameter, which may be unknown. That is, both are measured rather than “controlled” and both include uncertainty. We thus are not seeking an equation of how Y varies with changes in X, but rather we are look for how they both co-vary in response to some other variable or process. Under these conditions Model II regression analysis may be more appropriate. In Model II approaches, a line of best fit is chosen that minimizes in some way the direct distance of each point to the best fit line. There are several different types of Model II regression, and which to use depends upon the specifics of the case. Common approaches are know as major axis, ranged major axis, and reduced major axis (a.k.a. standard major axis) regression.
+
+**perhaps better to use Model II here since we aren't seeing if one predicts the other but rather how they co-vary??**
+
 ```{r - packages}
 library(dplyr)
 library(curl)
 library(ggplot2)
 library(gridExtra)
 library(car)
+library(lmodel2)
+library(sciplot)
 ```
 
 ## Data Preparation
@@ -35,8 +41,8 @@ head(d)
 ```
 
 ```{r - prepare data}
-d <- na.omit(d) 
-
+d <- select(d,Body_mass_female_mean,HomeRange_km2)
+d <- na.omit(d) #I used na.omit after selecting just the desired variables because when I used na.omit on the entire dataset it removed any entry that had an NA in any column, reducing the sample size to 26...
 x <- log(d$Body_mass_female_mean) #predictor
 y <- log(d$HomeRange_km2) #response
 ```
@@ -73,6 +79,7 @@ With summary(m), we can see that the pvalue < 0.05 and thus there appears to be 
 
 ## Plotting the Regression
 ```{r - plot the model}
+par(mfrow = c(2, 2))
 plot(m)
 ```
 The function qqPlot() from the {car} package provides a trend line and confidence intervals that allow us to see exactly which points make the sample fall outside of normality (if any)
@@ -89,111 +96,67 @@ s
 From this output, the p-value > 0.05 implying that the distribution of the data are not significantly different from normal distribution. Thus, we can assume the normality!
 
 
-## Log(longevity) ~ Log(brain size)
+Model II regression may be more appropriate for this analysis since we aren't testing the predictive relationship between Female mass and Home range, rather how they co-vary?
 
-### Fitting the log regression model
-
-Like before, I pulled out the desired *predictor* and *response* variable data from dataframe, d, (with NA/missing values already removed) into objects **xx** and **yy**. During this process, I also transformed the data with function log()
-```{r - prepare log data}
-
-xx <- log(d$Brain_Size_Species_Mean) #log(predictor)
-yy <- log(d$MaxLongevity_m) #log(response)
+```{r - model II}
+mII <- lmodel2(y ~ x, data = d, range.y = "interval", range.x = "relative",
+    nperm = 1000)
+mII
 ```
 
-Using the same code as earlier, only this time with variables **xx** and **yy**, I determined the regression slope(log.beta1) and intercept(log.beta2)
-```{r - log beta values}
-log.beta1 <- cor(yy, xx) * sd(yy)/sd(xx) 
-log.beta0 <- mean(yy) - log.beta1 * mean(xx)
+# Challenge 2
 
-log.beta.values <- list(Slope = as.numeric(log.beta1), Intercept = as.numeric(log.beta0))
-print(log.beta.values)
+## Bootstrapping
+
+I then used code from HW3 to create a new object with data from sampling dataframe *d* 1000 times *with* replacement. I actually ended up using code from this [link](https://towardsdatascience.com/bootstrap-regression-in-r-98bfe4ff5007)
+```{r - boots}
+# Containers for the coefficients
+sample_coef_intercept <- NULL
+sample_coef_slope <- NULL
+
+for (i in 1:1000) {
+  #Creating a resampled dataset from the sample data
+  d_boots = d[sample(1:nrow(d), nrow(d), replace = TRUE), ] #WITH replacement
+  
+  #Running the regression on these data
+  d_boots <- lm(log(Body_mass_female_mean) ~ log(HomeRange_km2), data = d_boots) #I log transformed my y ~ x here
+  
+  #Saving the coefficients
+  sample_coef_intercept <-
+    c(sample_coef_intercept, d_boots$coefficients[1])
+  
+  sample_coef_slope <-
+    c(sample_coef_slope, d_boots$coefficients[2])
+}
+
+
 ```
 
-You can then use the log beta values and the log predictor data, **xx**, to determine the regression line. 
-The regression line equation is:
-yy = beta1(xx)+beta0... aka *y = slope(x) + intercept*
-```{r - log regression line by hand}
-yy.log <- log.beta1 * xx + log.beta0
-yy.log
-log.equation <- paste("yy = ",log.beta1, "* xx + ", log.beta0) #I used paste() here to show the regression line equation
-log.equation
+## Interpreting β values
+
+1. Estimate the standard error for each of your β coefficients as the standard deviation of the sampling distribution from your bootstrap and determine the 95% CI for each of your β coefficients based on the appropriate quantiles from your sampling distribution.
+
+I can use the mean(), sd(), and se() functions with the coefficient objects created above from the entire bootstrap sampling distribution 
+```{r - beta mean}
+#Bootstrapped Mean
+mean_slope <- mean(sample_coef_slope)
+mean_intercept <- mean(sample_coef_intercept)
+mean_betas <- list(Mean.Slope = as.numeric(mean_slope), Mean.Intercept = as.numeric(mean_intercept))
+
+#Bootstrapped Standard Deviation
+sd_slope <- sd(sample_coef_slope)
+sd_intercept <- sd(sample_coef_intercept)
+sd_betas <- list(SD.Slope = as.numeric(sd_slope), SD.Intercept = as.numeric(sd_intercept))
+
+#Bootstrapped Standard Error
+se_slope <- se(sample_coef_slope)
+se_intercept <- se(sample_coef_intercept)
+se_betas <- list(SE.Slope = as.numeric(se_slope), SE.Intercept = as.numeric(se_intercept))
+
+beta.averages <- cbind(mean_betas,sd_betas,se_betas)
+beta.averages
 ```
 
-lm() is, again, a much faster way to determine the regression line. 
-```{r - log}
-logm <- lm(yy ~ xx, data = d)
-summary(logm)
-```
+2. How does the former compare to the SE estimated from your entire dataset using the formula for standard error implemented in lm()?
 
-From *summary(logm)* we see that the p-value, (0.000458), is less than  0.05 and thus, the predictor variable (brain size) significantly influences the response variable (max longevity). This means we can reject the null  hypothesis..
-
-
-Next - I used used ggplot to create a scatterplot with the fitted log regression line superimposed upon the data. I added the regression equation based on the object *log.equation* I made above with the equation components. 
-
-```{r - log plot1}
-log.plot1 <- ggplot(data = d, aes(x = xx, y = yy)) + theme_minimal() +
-              geom_point() +
-              labs(x = "log(Mean Species Brain Size)", y = "log(Max Longevity)", size = 14) +
-              geom_smooth(method = "lm", formula = y ~ x) +
-              geom_text(x = 5, y = 5.3, label= log.equation)
-log.plot1
-```
-
-
-### Identify & Interpret (log)
-
-As outlined above..
-
-Slope = log.beta1 = cor(yy, xx) * sd(yy)/sd(xx)
-
-Intercept = log.beta0 = mean(yy) - log.beta1 * mean(xx)
-
-```{r - log identift/interpret}
-log.beta.values
-```
-*The log transformed data looks at percentage of difference without the different units (grams and months) confounding our analysis.*
-
-Below is the 90  CI for the log slope (β1) parameter.
-```{r - log ci90}
-log.beta1.ci <- confint(logm, level = 0.90)  #confint() function uses lm object "logm" to calculate confidence intervals.
-log.beta1.ci
-```
-
-### Adding Confidence & Prediction Intervals (log)
-
-I first created 90% confidence intervals using predict() function from Module 11. *data = logm here instead of m*
-```{r - log CI}
-log.ci90 <- predict(logm, newdata = data.frame(Brain_Size_Species_Mean = xx), interval = "confidence",level = 0.90)
-colnames(log.ci90) <- c("Fit_CI","Lower_CI","Upper_CI")
-head(log.ci90)
-```
-
-Next I created 90% predictive intervals using predict() with the argument interval = "prediction"
-```{r - log PI}
-log.pi90 <- predict(logm, newdata = data.frame(Brain_Size_Species_Mean = xx), interval = "prediction", level = 0.90) 
-colnames(log.pi90) <- c("Fit_PI","Lower_PI","Upper_PI")
-head(log.pi90)
-```
-
-I then used cbind() to coerce the confidence and prediction intervals, and log(longevity) and log(brain size) data, into a single dataframe, *log.interval.plot*
-```{r - log plot df}
-log.interval.plot <- data.frame(cbind(xx, yy, log.ci90, log.pi90))
-head(log.interval.plot)
-```
-
-### Plotting log PI/CI
-
-Next, using ggplot, I created a new scatterplot with the 90% Confidence and Prediction Intervals. By using 'color = "Confience"/"Prediction"' I was able to separate the colors for the Prediction and Confidence intervals in the legend. 
-```{r - log.plot2}
-log.plot2 <- ggplot(log.interval.plot, aes(x = xx, y = yy)) + theme_minimal() +
-          geom_point() + labs(x = "log(Mean Species Brain Size)", y = "log(Max Longevity)", size = 14) +
-          geom_line(aes(x = xx, y = Fit_CI, color = "Confidence")) +
-          geom_line(aes(x = xx, y = Lower_CI, color = "Confidence")) +
-          geom_line(aes(x = xx, y = Upper_CI, color = "Confidence")) +
-          geom_line(aes(x = xx, y = Fit_PI, color = "Prediction")) +
-          geom_line(aes(x = xx, y = Lower_PI, color = "Prediction")) +
-          geom_line(aes(x = xx, y = Upper_PI, color = "Prediction")) +
-        scale_color_manual(name = "Intervals - 90%", values=c("Confidence" = "#FF6600", "Prediction" = "#000066")) #spooky colors !!
-   
-log.plot2
-```
+3. How does the latter compare to the 95% CI estimated from your entire dataset?
