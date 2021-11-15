@@ -1,0 +1,202 @@
+---
+title: "Boots for Days!"
+author: "Victoria Zdanowicz"
+date: "11/11/2021"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Challenge 1
+
+>Using the “KamilarAndCooperData.csv” dataset, run a linear regression looking at log(HomeRange_km2) in relation to log(Body_mass_female_mean) and report your β coeffiecients (slope and intercept).
+
+The assumption of greater uncertainty in our response variable than in our predictor variable may be reasonable in controlled experiments, but for natural observations, measurement of the X variable also typically involves some error and, in fact, in many cases we may not be concerned about PREDICTING Y from X but rather want to treat both X and Y as independent variables and explore the relationship between them or consider that both are dependent on some additional parameter, which may be unknown. That is, both are measured rather than “controlled” and both include uncertainty. We thus are not seeking an equation of how Y varies with changes in X, but rather we are look for how they both co-vary in response to some other variable or process. Under these conditions Model II regression analysis may be more appropriate. In Model II approaches, a line of best fit is chosen that minimizes in some way the direct distance of each point to the best fit line. There are several different types of Model II regression, and which to use depends upon the specifics of the case. Common approaches are know as major axis, ranged major axis, and reduced major axis (a.k.a. standard major axis) regression.
+
+**perhaps better to use Model II here since we aren't seeing if one predicts the other but rather how they co-vary??**
+
+```{r - packages}
+library(dplyr)
+library(curl)
+library(ggplot2)
+library(gridExtra)
+library(car)
+library(lmodel2)
+library(sciplot)
+```
+
+## Data Preparation
+
+I started by first loading in the Kamilar & Cooper dataset and making 2 distinct objects with the desired variables, omitting NA values.  
+```{r - load in data}
+f <- curl("https://raw.githubusercontent.com/fuzzyatelin/fuzzyatelin.github.io/master/AN588_Fall21/KamilarAndCooperData.csv")
+d <- read.csv(f, header = TRUE, sep = ",", stringsAsFactors = FALSE)
+head(d)
+```
+
+```{r - prepare data}
+d <- select(d,Body_mass_female_mean,HomeRange_km2)
+d <- na.omit(d) #I used na.omit after selecting just the desired variables because when I used na.omit on the entire dataset it removed any entry that had an NA in any column, reducing the sample size to 26...
+#NK: I also had this problem. Good fix. 
+x <- log(d$Body_mass_female_mean) #predictor
+y <- log(d$HomeRange_km2) #response
+```
+
+## Beta Values
+
+I then determined the beta values using the equations from Module 11 and my code from HW4. These equations determine the regression slope(beta1) and intercept(beta0)
+```{r - beta values}
+beta1 <- cor(y, x) * sd(y)/sd(x) 
+beta0 <- mean(y) - beta1 * mean(x)
+
+beta.values <- list(Slope = as.numeric(beta1), Intercept = as.numeric(beta0))
+```
+
+As outlined above..
+
+Slope = beta1 = cor(y, x) * sd(y)/sd(x)
+
+Intercept = beta0 = mean(y) - beta1 * mean(x)
+
+```{r - beta}
+beta.values
+```
+*By using log transformed data, we can assess the percentage of difference between two variables without different units (grams and km) confounding our analysis.*
+
+## Linear Regression
+
+You can also determine regression slope and intercept using lm() function, which is much faster/cleaner... 
+```{r - lm}
+m <- lm(y ~ x, data = d)
+summary(m)
+```
+With summary(m), we can see that the pvalue < 0.05 and thus there appears to be a significant relationship between Female Body Mass and Home Range. We can also see in the summary that the intercept and slope values calculated by hand above are equal to the intercept and x(slope) values from lm summary.
+
+## Plotting the Regression
+```{r - plot the model}
+par(mfrow = c(2, 2))
+plot(m)
+```
+The function qqPlot() from the {car} package provides a trend line and confidence intervals that allow us to see exactly which points make the sample fall outside of normality (if any)
+```{r - cars plot}
+qqPlot(m$residuals)
+```
+
+From these plots, the data appears to be normally distributed. We can also use a Shapiro-Wilk Normality Test, where a low p value would indicate deviation from normality (a measure of how far the trend line of the residuals deviates from the qqplot line).
+
+```{r - shapiro}
+s <- shapiro.test(m$residuals)
+s
+```
+From this output, the p-value > 0.05 implying that the distribution of the data are not significantly different from normal distribution. Thus, we can assume the normality!
+
+## Model II?
+
+Model II regression may be more appropriate for this analysis since we aren't testing the predictive relationship between Female mass and Home range, rather how they co-vary?
+
+```{r - model II}
+mII <- lmodel2(y ~ x, data = d, range.y = "interval", range.x = "relative",
+    nperm = 1000)
+mII
+```
+
+# Challenge 2
+
+## Bootstrapping
+
+I then used code from HW3 to create a new object with data from sampling dataframe *d* 1000 times *with* replacement. I actually ended up using code from this [link](https://towardsdatascience.com/bootstrap-regression-in-r-98bfe4ff5007)
+```{r - boots}
+# Containers for the coefficients
+sample_coef_intercept <- NULL
+sample_coef_slope <- NULL
+
+for (i in 1:1000) {
+  #Creating a resampled dataset from the sample data
+  d_boots = d[sample(1:nrow(d), nrow(d), replace = TRUE), ] #WITH replacement
+  
+  #Running the regression on these data
+  d_boots <- lm(log(HomeRange_km2) ~ log(Body_mass_female_mean), data = d_boots) #I log transformed my y ~ x here
+  
+  #Saving the coefficients
+  sample_coef_intercept <-
+    c(sample_coef_intercept, d_boots$coefficients[1])
+  
+  sample_coef_slope <-
+    c(sample_coef_slope, d_boots$coefficients[2])
+}
+
+
+```
+
+## Interpreting β coefficients
+
+*Estimate the standard error for each of your β coefficients as the standard deviation of the sampling distribution from your bootstrap and determine the 95% CI for each of your β coefficients based on the appropriate quantiles from your sampling distribution.*
+
+I can use the mean(), sd(), and se() functions with the coefficient objects created above from the entire bootstrap sampling distribution 
+```{r - beta mean}
+#Bootstrapped Mean
+mean_slope <- mean(sample_coef_slope)
+mean_intercept <- mean(sample_coef_intercept)
+mean_boots <- list(Slope = as.numeric(mean_slope),Intercept = as.numeric(mean_intercept))
+
+#Bootstrapped Standard Deviation
+sd_slope <- sd(sample_coef_slope)
+sd_intercept <- sd(sample_coef_intercept)
+sd_boots <- list(Slope = as.numeric(sd_slope),Intercept = as.numeric(sd_intercept))
+
+#Bootstrapped Standard Error
+se_slope <- se(sample_coef_slope)
+se_intercept <- se(sample_coef_intercept)
+se_boots <- list(Slope = as.numeric(se_slope),Intercept = as.numeric(se_intercept))
+
+beta.boots <- cbind(mean_boots,sd_boots,se_boots)
+beta.boots
+```
+
+I next calculated the 95% confidence intervals for the slope and intercept 
+```{r - slope ci}
+#Slope CI
+slope.lower <- mean_slope - qnorm(1 - 0.05/2) * se_slope
+slope.upper <- mean_slope + qnorm(1 - 0.05/2) * se_slope
+ci_slope_boots <- list(Lower = as.numeric(slope.lower), Upper = as.numeric(slope.upper))
+
+#Intercept CI
+intercept.lower <- mean_intercept - qnorm(1 - 0.05/2) * se_intercept
+intercept.upper <- mean_intercept + qnorm(1 - 0.05/2) * se_intercept
+ci_intercept_boots <- list(Lower = as.numeric(intercept.lower), Upper = as.numeric(intercept.upper))
+
+ci_boots <- cbind(ci_slope_boots,ci_intercept_boots)
+ci_boots
+```
+
+## Comparing Model & Bootstrap
+
+*How does the former compare to the SE estimated from your entire dataset using the formula for standard error implemented in lm()?*
+
+```{r - m SE}
+se_model <- coef(summary(m))[, "Std. Error"]
+SE_compare <- cbind(se_model,se_boots)
+SE_compare
+```
+
+In the table above we can clearly see that the SE for intercept,β0, and slope,β1, from the bootstrapped dataset (se_boots) is lower than the standard error pulled out of the initial linear regression model (m).
+
+
+*How does the latter compare to the 95% CI estimated from your entire dataset?*
+
+```{r - m CI}
+ci_model <- confint(m, level = 0.90)  #confint() function uses lm object d to calculate confidence intervals.
+CI_compare <- cbind(ci_model,ci_boots)
+CI_compare
+```
+In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs. I still need to figure out a better table layout for the CI values because I think the current layout is confusing
+
+<span style="color: red;">*what is the difference between predict() and confint() ????? predict(m, newdata, interval="confidence")*</span>
+
+NK: All of this is extremely well organized and justified! Your answers also appear logical and the code is easy to follow.
