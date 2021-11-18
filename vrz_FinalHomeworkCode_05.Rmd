@@ -70,7 +70,7 @@ beta.values
 
 ## Linear Regression
 
-You can also determine regression slope and intercept using lm() function, which is much faster/cleaner... 
+You can also determine regression slop and intercept using lm() function, which is much faster/cleaner... 
 ```{r - lm}
 m <- lm(y ~ x, data = d)
 summary(m)
@@ -170,7 +170,7 @@ intercept.lower <- mean_intercept - qnorm(1 - 0.05/2) * se_intercept
 intercept.upper <- mean_intercept + qnorm(1 - 0.05/2) * se_intercept
 ci_intercept_boots <- list(Lower = as.numeric(intercept.lower), Upper = as.numeric(intercept.upper))
 
-ci_boots <- rbind(ci_slope_boots,ci_intercept_boots)
+ci_boots <- cbind(ci_slope_boots,ci_intercept_boots)
 ci_boots
 ```
 
@@ -190,11 +190,10 @@ In the table above we can clearly see that the SE for intercept,Î²0, and slope,Î
 *How does the latter compare to the 95% CI estimated from your entire dataset?*
 
 ```{r - m CI}
-ci_model <- confint(m, level = 0.95)  #confint() function uses lm object d to calculate confidence intervals.
-colnames(ci_model) <- c("Lower","Upper")
-CI_compare <- rbind(ci_model,ci_boots)
-rownames(CI_compare) <- c("Model_Intercept","Model_Slope","Boot_Intercept","Boot_Slope")
+ci_model <- confint(m, level = 0.90)  #confint() function uses lm object d to calculate confidence intervals.
+CI_compare <- cbind(ci_model,ci_boots)
 CI_compare
 ```
-In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs.The confidence intervals of the bootstrap data are much tighter and thus more accurate. This makes sense since we increased the dataset by bootstrapping, wider confidence intervals are usually associated with a smaller sample size.
+In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs. I still need to figure out a better table layout for the CI values because I think the current layout is confusing
 
+<span style="color: red;">*what is the difference between predict() and confint() ????? predict(m, newdata, interval="confidence")*</span>
