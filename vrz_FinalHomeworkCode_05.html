@@ -254,7 +254,7 @@ div.tocify {
 <p>Using the “KamilarAndCooperData.csv” dataset, run a linear regression looking at log(HomeRange_km2) in relation to log(Body_mass_female_mean) and report your β coeffiecients (slope and intercept).</p>
 </blockquote>
 <p>The assumption of greater uncertainty in our response variable than in our predictor variable may be reasonable in controlled experiments, but for natural observations, measurement of the X variable also typically involves some error and, in fact, in many cases we may not be concered about PREDICTING Y from X but rather want to treat both X and Y as independent variables and explore the relationship between them or consider that both are dependent on some additional parameter, which may be unknown. That is, both are measured rather than “controlled” and both include uncertainty. We thus are not seeking an equation of how Y varies with changes in X, but rather we are look for how they both co-vary in response to some other variable or process. Under these conditions Model II regression analysis may be more appropriate. In Model II approaches, a line of best fit is chosen that minimizes in some way the direct distance of each point to the best fit line. There are several different types of Model II regression, and which to use depends upon the specifics of the case. Common approaches are know as major axis, ranged major axis, and reduced major axis (a.k.a. standard major axis) regression.</p>
-<p><strong>perhaps better to use Model II here since we aren’t seeing if one predicts the other but rather how they co-vary??</strong></p>
+<p><strong>perhaps better to use Model II here since we aren’t seeing if one predicts the other but rather how they co-vary!</strong></p>
 <pre class="r"><code>library(dplyr)</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;dplyr&#39;</code></pre>
@@ -390,7 +390,7 @@ beta.values &lt;- list(Slope = as.numeric(beta1), Intercept = as.numeric(beta0))
 </div>
 <div id="linear-regression" class="section level2">
 <h2>Linear Regression</h2>
-<p>You can also determine regression slop and intercept using lm() function, which is much faster/cleaner…</p>
+<p>You can also determine regression slope and intercept using lm() function, which is much faster/cleaner…</p>
 <pre class="r"><code>m &lt;- lm(y ~ x, data = d)
 summary(m)</code></pre>
 <pre><code>## 
@@ -516,9 +516,9 @@ se_boots &lt;- list(Slope = as.numeric(se_slope),Intercept = as.numeric(se_inter
 
 beta.boots &lt;- cbind(mean_boots,sd_boots,se_boots)
 beta.boots</code></pre>
-<pre><code>##           mean_boots sd_boots   se_boots   
-## Slope     1.038473   0.07702856 0.002435857
-## Intercept -9.457922  0.6000993  0.01897681</code></pre>
+<pre><code>##           mean_boots sd_boots  se_boots   
+## Slope     1.032957   0.0758445 0.002398414
+## Intercept -9.419369  0.5869643 0.01856144</code></pre>
 <p>I next calculated the 95% confidence intervals for the slope and intercept</p>
 <pre class="r"><code>#Slope CI
 slope.lower &lt;- mean_slope - qnorm(1 - 0.05/2) * se_slope
@@ -530,11 +530,11 @@ intercept.lower &lt;- mean_intercept - qnorm(1 - 0.05/2) * se_intercept
 intercept.upper &lt;- mean_intercept + qnorm(1 - 0.05/2) * se_intercept
 ci_intercept_boots &lt;- list(Lower = as.numeric(intercept.lower), Upper = as.numeric(intercept.upper))
 
-ci_boots &lt;- cbind(ci_slope_boots,ci_intercept_boots)
+ci_boots &lt;- rbind(ci_slope_boots,ci_intercept_boots)
 ci_boots</code></pre>
-<pre><code>##       ci_slope_boots ci_intercept_boots
-## Lower 1.033699       -9.495115         
-## Upper 1.043247       -9.420728</code></pre>
+<pre><code>##                    Lower     Upper    
+## ci_slope_boots     1.028256  1.037658 
+## ci_intercept_boots -9.455748 -9.382989</code></pre>
 </div>
 <div id="comparing-model-bootstrap" class="section level2">
 <h2>Comparing Model &amp; Bootstrap</h2>
@@ -543,18 +543,21 @@ ci_boots</code></pre>
 SE_compare &lt;- cbind(se_model,se_boots)
 SE_compare</code></pre>
 <pre><code>##             se_model   se_boots   
-## (Intercept) 0.6729346  0.002435857
-## x           0.08487709 0.01897681</code></pre>
+## (Intercept) 0.6729346  0.002398414
+## x           0.08487709 0.01856144</code></pre>
 <p>In the table above we can clearly see that the SE for intercept,β0, and slope,β1, from the bootstrapped dataset (se_boots) is lower than the standard error pulled out of the initial linear regression model (m).</p>
 <p><em>How does the latter compare to the 95% CI estimated from your entire dataset?</em></p>
-<pre class="r"><code>ci_model &lt;- confint(m, level = 0.90)  #confint() function uses lm object d to calculate confidence intervals.
-CI_compare &lt;- cbind(ci_model,ci_boots)
+<pre class="r"><code>ci_model &lt;- confint(m, level = 0.95)  #confint() function uses lm object d to calculate confidence intervals.
+colnames(ci_model) &lt;- c(&quot;Lower&quot;,&quot;Upper&quot;)
+CI_compare &lt;- rbind(ci_model,ci_boots)
+rownames(CI_compare) &lt;- c(&quot;Model_Intercept&quot;,&quot;Model_Slope&quot;,&quot;Boot_Intercept&quot;,&quot;Boot_Slope&quot;)
 CI_compare</code></pre>
-<pre><code>##             5 %       95 %      ci_slope_boots ci_intercept_boots
-## (Intercept) -10.55576 -8.326704 1.033699       -9.495115         
-## x           0.8958565 1.177007  1.043247       -9.420728</code></pre>
-<p>In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs. I still need to figure out a better table layout for the CI values because I think the current layout is confusing</p>
-<p><span style="color: red;"><em>what is the difference between predict() and confint() ????? predict(m, newdata, interval=“confidence”)</em></span></p>
+<pre><code>##                 Lower     Upper    
+## Model_Intercept -10.77209 -8.110374
+## Model_Slope     0.8685707 1.204292 
+## Boot_Intercept  1.028256  1.037658 
+## Boot_Slope      -9.455748 -9.382989</code></pre>
+<p>In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs.The confidence intervals of the bootstrap data are much tighter and thus more accurate. This makes sense since we increased the dataset by bootstrapping, wider confidence intervals are usually associated with a smaller sample size.</p>
 </div>
 </div>
 

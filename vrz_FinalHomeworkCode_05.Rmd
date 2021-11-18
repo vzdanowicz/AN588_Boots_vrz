@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 The assumption of greater uncertainty in our response variable than in our predictor variable may be reasonable in controlled experiments, but for natural observations, measurement of the X variable also typically involves some error and, in fact, in many cases we may not be concered about PREDICTING Y from X but rather want to treat both X and Y as independent variables and explore the relationship between them or consider that both are dependent on some additional parameter, which may be unknown. That is, both are measured rather than “controlled” and both include uncertainty. We thus are not seeking an equation of how Y varies with changes in X, but rather we are look for how they both co-vary in response to some other variable or process. Under these conditions Model II regression analysis may be more appropriate. In Model II approaches, a line of best fit is chosen that minimizes in some way the direct distance of each point to the best fit line. There are several different types of Model II regression, and which to use depends upon the specifics of the case. Common approaches are know as major axis, ranged major axis, and reduced major axis (a.k.a. standard major axis) regression.
 
-**perhaps better to use Model II here since we aren't seeing if one predicts the other but rather how they co-vary??**
+**perhaps better to use Model II here since we aren't seeing if one predicts the other but rather how they co-vary!**
 
 ```{r - packages}
 library(dplyr)
@@ -70,7 +70,7 @@ beta.values
 
 ## Linear Regression
 
-You can also determine regression slop and intercept using lm() function, which is much faster/cleaner... 
+You can also determine regression slope and intercept using lm() function, which is much faster/cleaner... 
 ```{r - lm}
 m <- lm(y ~ x, data = d)
 summary(m)
@@ -170,7 +170,7 @@ intercept.lower <- mean_intercept - qnorm(1 - 0.05/2) * se_intercept
 intercept.upper <- mean_intercept + qnorm(1 - 0.05/2) * se_intercept
 ci_intercept_boots <- list(Lower = as.numeric(intercept.lower), Upper = as.numeric(intercept.upper))
 
-ci_boots <- cbind(ci_slope_boots,ci_intercept_boots)
+ci_boots <- rbind(ci_slope_boots,ci_intercept_boots)
 ci_boots
 ```
 
@@ -190,10 +190,11 @@ In the table above we can clearly see that the SE for intercept,β0, and slope,�
 *How does the latter compare to the 95% CI estimated from your entire dataset?*
 
 ```{r - m CI}
-ci_model <- confint(m, level = 0.90)  #confint() function uses lm object d to calculate confidence intervals.
-CI_compare <- cbind(ci_model,ci_boots)
+ci_model <- confint(m, level = 0.95)  #confint() function uses lm object d to calculate confidence intervals.
+colnames(ci_model) <- c("Lower","Upper")
+CI_compare <- rbind(ci_model,ci_boots)
+rownames(CI_compare) <- c("Model_Intercept","Model_Slope","Boot_Intercept","Boot_Slope")
 CI_compare
 ```
-In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs. I still need to figure out a better table layout for the CI values because I think the current layout is confusing
+In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs.The confidence intervals of the bootstrap data are much tighter and thus more accurate. This makes sense since we increased the dataset by bootstrapping, wider confidence intervals are usually associated with a smaller sample size.
 
-<span style="color: red;">*what is the difference between predict() and confint() ????? predict(m, newdata, interval="confidence")*</span>
