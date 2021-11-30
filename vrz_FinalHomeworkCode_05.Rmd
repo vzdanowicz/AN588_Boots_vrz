@@ -198,3 +198,4 @@ CI_compare
 ```
 In this table above, comparing the CI from the bootstrapped data and the original model, we see that the bootstrapped intervals are more accurate than the original model CIs.The confidence intervals of the bootstrap data are much tighter and thus more accurate. This makes sense since we increased the dataset by bootstrapping, wider confidence intervals are usually associated with a smaller sample size.
 
+*very nice, good work!*
